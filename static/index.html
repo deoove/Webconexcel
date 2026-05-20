@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gestión de Personas</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; background: #f0f2f5; color: #333; }
+    header { background: #2563eb; color: white; padding: 16px 32px; }
+    header h1 { font-size: 1.4rem; }
+    main { max-width: 900px; margin: 32px auto; padding: 0 16px; }
+    .card { background: white; border-radius: 10px; padding: 24px; box-shadow: 0 1px 6px rgba(0,0,0,.1); margin-bottom: 24px; }
+    h2 { color: #2563eb; margin-bottom: 16px; font-size: 1.1rem; }
+    .form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+    .field { flex: 1; min-width: 140px; }
+    label { display: block; margin-bottom: 4px; font-size: 0.8rem; font-weight: bold; color: #555; }
+    input { width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 1rem; }
+    input:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
+    .btn { padding: 10px 18px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.95rem; }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-secondary { background: #e5e7eb; color: #374151; }
+    .btn-warning { background: #f59e0b; color: white; }
+    .btn-warning:hover { background: #d97706; }
+    .btn-danger { background: #ef4444; color: white; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-sm { padding: 6px 12px; font-size: 0.85rem; }
+    table { width: 100%; border-collapse: collapse; }
+    thead { background: #2563eb; color: white; }
+    th, td { padding: 11px 14px; text-align: left; }
+    tbody tr:nth-child(even) { background: #f8fafc; }
+    tbody tr:hover { background: #eff6ff; }
+    .actions { display: flex; gap: 8px; }
+    .empty { text-align: center; padding: 32px; color: #6b7280; }
+    .msg { padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 0.9rem; display: none; }
+    .msg-success { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+    .msg-error { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Gestión de Personas &mdash; Excel</h1>
+</header>
+<main>
+  <div id="msg" class="msg"></div>
+
+  <div class="card">
+    <h2 id="form-titulo">Nueva persona</h2>
+    <form id="form">
+      <input type="hidden" id="persona-id">
+      <div class="form-row">
+        <div class="field">
+          <label for="nombre">Nombre</label>
+          <input type="text" id="nombre" placeholder="Ej: Juan" required>
+        </div>
+        <div class="field">
+          <label for="apellido">Apellido</label>
+          <input type="text" id="apellido" placeholder="Ej: Pérez" required>
+        </div>
+        <div class="field">
+          <label for="dni">DNI</label>
+          <input type="text" id="dni" placeholder="Ej: 30123456" inputmode="numeric" pattern="[0-9]+" required>
+        </div>
+        <div class="field" style="flex:0; display:flex; gap:8px;">
+          <button type="submit" class="btn btn-primary" id="btn-guardar">Agregar</button>
+          <button type="button" class="btn btn-secondary" id="btn-cancelar" style="display:none;">Cancelar</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <table>
+      <thead>
+        <tr><th>#</th><th>Nombre</th><th>Apellido</th><th>DNI</th><th>Acciones</th></tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div id="empty" class="empty" style="display:none;">No hay personas registradas.</div>
+  </div>
+</main>
+
+<script>
+const API = "/api/personas";
+const form = document.getElementById("form");
+const tbody = document.getElementById("tbody");
+
+function mostrarMensaje(texto, tipo) {
+  const m = document.getElementById("msg");
+  m.textContent = texto;
+  m.className = "msg msg-" + tipo;
+  m.style.display = "block";
+  setTimeout(() => { m.style.display = "none"; }, 3500);
+}
+
+function escapar(t) {
+  const div = document.createElement("div");
+  div.textContent = t;
+  return div.innerHTML;
+}
+
+async function cargar() {
+  const res = await fetch(API);
+  const personas = await res.json();
+  tbody.innerHTML = "";
+  document.getElementById("empty").style.display = personas.length ? "none" : "block";
+  for (const p of personas) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${p.id}</td>
+      <td>${escapar(p.nombre)}</td>
+      <td>${escapar(p.apellido)}</td>
+      <td>${escapar(p.dni)}</td>
+      <td class="actions">
+        <button class="btn btn-warning btn-sm" data-accion="editar" data-id="${p.id}">Modificar</button>
+        <button class="btn btn-danger btn-sm" data-accion="eliminar" data-id="${p.id}">Eliminar</button>
+      </td>`;
+    tr.querySelector('[data-accion="editar"]').addEventListener("click", () => editar(p));
+    tr.querySelector('[data-accion="eliminar"]').addEventListener("click", () => eliminar(p));
+    tbody.appendChild(tr);
+  }
+}
+
+function editar(p) {
+  document.getElementById("persona-id").value = p.id;
+  document.getElementById("nombre").value = p.nombre;
+  document.getElementById("apellido").value = p.apellido;
+  document.getElementById("dni").value = p.dni;
+  document.getElementById("form-titulo").textContent = "Modificar persona #" + p.id;
+  document.getElementById("btn-guardar").textContent = "Guardar cambios";
+  document.getElementById("btn-cancelar").style.display = "inline-block";
+  document.getElementById("nombre").focus();
+}
+
+function resetForm() {
+  form.reset();
+  document.getElementById("persona-id").value = "";
+  document.getElementById("form-titulo").textContent = "Nueva persona";
+  document.getElementById("btn-guardar").textContent = "Agregar";
+  document.getElementById("btn-cancelar").style.display = "none";
+}
+
+async function eliminar(p) {
+  if (!confirm(`¿Eliminar a ${p.nombre} ${p.apellido}?`)) return;
+  const res = await fetch(`${API}/${p.id}`, { method: "DELETE" });
+  if (res.ok) { mostrarMensaje("Persona eliminada correctamente.", "success"); cargar(); }
+  else { mostrarMensaje("No se pudo eliminar.", "error"); }
+}
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const id = document.getElementById("persona-id").value;
+  const datos = {
+    nombre: document.getElementById("nombre").value.trim(),
+    apellido: document.getElementById("apellido").value.trim(),
+    dni: document.getElementById("dni").value.trim(),
+  };
+  const url = id ? `${API}/${id}` : API;
+  const metodo = id ? "PUT" : "POST";
+  const res = await fetch(url, {
+    method: metodo,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(datos),
+  });
+  const cuerpo = await res.json();
+  if (res.ok) {
+    mostrarMensaje(id ? "Persona modificada correctamente." : "Persona agregada correctamente.", "success");
+    resetForm();
+    cargar();
+  } else {
+    mostrarMensaje(cuerpo.error || "Ocurrió un error.", "error");
+  }
+});
+
+document.getElementById("btn-cancelar").addEventListener("click", resetForm);
+
+cargar();
+</script>
+</body>
+</html>

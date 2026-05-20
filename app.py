@@ -1,9 +1,8 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, jsonify, request, send_from_directory
 import openpyxl
 import os
 
-app = Flask(__name__)
-app.secret_key = "clave_secreta"
+app = Flask(__name__, static_folder="static")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 EXCEL_FILE = os.path.join(BASE_DIR, "datos.xlsx")
@@ -34,7 +33,7 @@ def get_all_personas():
     personas = []
     for row in ws.iter_rows(min_row=2, values_only=True):
         if row[0] is not None:
-            personas.append({"id": row[0], "nombre": row[1], "apellido": row[2], "dni": row[3]})
+            personas.append({"id": row[0], "nombre": row[1], "apellido": row[2], "dni": str(row[3])})
     return personas
 
 
@@ -64,75 +63,62 @@ def validar(nombre, apellido, dni, excluir_id=None):
 
 @app.route("/")
 def index():
-    personas = get_all_personas()
-    return render_template("index.html", personas=personas)
+    return send_from_directory(app.static_folder, "index.html")
 
 
-@app.route("/alta", methods=["GET", "POST"])
-def alta():
-    if request.method == "POST":
-        nombre = request.form["nombre"].strip()
-        apellido = request.form["apellido"].strip()
-        dni = request.form["dni"].strip()
-        error = validar(nombre, apellido, dni)
-        if error:
-            flash(error, "error")
-            persona = {"nombre": nombre, "apellido": apellido, "dni": dni}
-            return render_template("form.html", accion="Alta", persona=persona)
-        wb = get_workbook()
-        ws = wb.active
-        new_id = get_next_id(ws)
-        ws.append([new_id, nombre, apellido, dni])
-        save_workbook(wb)
-        flash("Persona dada de alta correctamente.", "success")
-        return redirect(url_for("index"))
-    return render_template("form.html", accion="Alta", persona=None)
+@app.get("/api/personas")
+def listar():
+    return jsonify(get_all_personas())
 
 
-@app.route("/modificar/<int:persona_id>", methods=["GET", "POST"])
-def modificar(persona_id):
+@app.post("/api/personas")
+def crear():
+    data = request.get_json(silent=True) or {}
+    nombre = str(data.get("nombre", "")).strip()
+    apellido = str(data.get("apellido", "")).strip()
+    dni = str(data.get("dni", "")).strip()
+    error = validar(nombre, apellido, dni)
+    if error:
+        return jsonify({"error": error}), 400
+    wb = get_workbook()
+    ws = wb.active
+    new_id = get_next_id(ws)
+    ws.append([new_id, nombre, apellido, dni])
+    save_workbook(wb)
+    return jsonify({"id": new_id, "nombre": nombre, "apellido": apellido, "dni": dni}), 201
+
+
+@app.put("/api/personas/<int:persona_id>")
+def actualizar(persona_id):
     wb = get_workbook()
     ws = wb.active
     row_idx = find_row(ws, persona_id)
     if row_idx is None:
-        flash("Persona no encontrada.", "error")
-        return redirect(url_for("index"))
-    if request.method == "POST":
-        nombre = request.form["nombre"].strip()
-        apellido = request.form["apellido"].strip()
-        dni = request.form["dni"].strip()
-        error = validar(nombre, apellido, dni, excluir_id=persona_id)
-        if error:
-            flash(error, "error")
-            persona = {"id": persona_id, "nombre": nombre, "apellido": apellido, "dni": dni}
-            return render_template("form.html", accion="Modificar", persona=persona)
-        ws.cell(row=row_idx, column=2).value = nombre
-        ws.cell(row=row_idx, column=3).value = apellido
-        ws.cell(row=row_idx, column=4).value = dni
-        save_workbook(wb)
-        flash("Persona modificada correctamente.", "success")
-        return redirect(url_for("index"))
-    persona = {
-        "id": ws.cell(row=row_idx, column=1).value,
-        "nombre": ws.cell(row=row_idx, column=2).value,
-        "apellido": ws.cell(row=row_idx, column=3).value,
-        "dni": ws.cell(row=row_idx, column=4).value,
-    }
-    return render_template("form.html", accion="Modificar", persona=persona)
+        return jsonify({"error": "Persona no encontrada."}), 404
+    data = request.get_json(silent=True) or {}
+    nombre = str(data.get("nombre", "")).strip()
+    apellido = str(data.get("apellido", "")).strip()
+    dni = str(data.get("dni", "")).strip()
+    error = validar(nombre, apellido, dni, excluir_id=persona_id)
+    if error:
+        return jsonify({"error": error}), 400
+    ws.cell(row=row_idx, column=2).value = nombre
+    ws.cell(row=row_idx, column=3).value = apellido
+    ws.cell(row=row_idx, column=4).value = dni
+    save_workbook(wb)
+    return jsonify({"id": persona_id, "nombre": nombre, "apellido": apellido, "dni": dni})
 
 
-@app.route("/eliminar/<int:persona_id>", methods=["POST"])
+@app.delete("/api/personas/<int:persona_id>")
 def eliminar(persona_id):
     wb = get_workbook()
     ws = wb.active
     row_idx = find_row(ws, persona_id)
     if row_idx is None:
-        flash("Persona no encontrada.", "error")
-    else:
-        ws.delete_rows(row_idx)
-        save_workbook(wb)
-        flash("Persona eliminada correctamente.", "success")
-    return redirect(url_for("index"))
+        return jsonify({"error": "Persona no encontrada."}), 404
+    ws.delete_rows(row_idx)
+    save_workbook(wb)
+    return jsonify({"ok": True})
 
 
 if __name__ == "__main__":
