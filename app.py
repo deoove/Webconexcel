@@ -44,6 +44,23 @@ def find_row(ws, persona_id):
     return None
 
 
+def dni_existe(dni, excluir_id=None):
+    for p in get_all_personas():
+        if str(p["dni"]) == dni and p["id"] != excluir_id:
+            return True
+    return False
+
+
+def validar(nombre, apellido, dni, excluir_id=None):
+    if not nombre or not apellido or not dni:
+        return "Todos los campos son obligatorios."
+    if not dni.isdigit():
+        return "El DNI debe contener solo números."
+    if dni_existe(dni, excluir_id):
+        return "Ya existe una persona con ese DNI."
+    return None
+
+
 @app.route("/")
 def index():
     personas = get_all_personas()
@@ -56,9 +73,11 @@ def alta():
         nombre = request.form["nombre"].strip()
         apellido = request.form["apellido"].strip()
         dni = request.form["dni"].strip()
-        if not nombre or not apellido or not dni:
-            flash("Todos los campos son obligatorios.", "error")
-            return render_template("form.html", accion="Alta", persona=None)
+        error = validar(nombre, apellido, dni)
+        if error:
+            flash(error, "error")
+            persona = {"nombre": nombre, "apellido": apellido, "dni": dni}
+            return render_template("form.html", accion="Alta", persona=persona)
         wb = get_workbook()
         ws = wb.active
         new_id = get_next_id(ws)
@@ -81,15 +100,17 @@ def modificar(persona_id):
         nombre = request.form["nombre"].strip()
         apellido = request.form["apellido"].strip()
         dni = request.form["dni"].strip()
-        if not nombre or not apellido or not dni:
-            flash("Todos los campos son obligatorios.", "error")
-        else:
-            ws.cell(row=row_idx, column=2).value = nombre
-            ws.cell(row=row_idx, column=3).value = apellido
-            ws.cell(row=row_idx, column=4).value = dni
-            save_workbook(wb)
-            flash("Persona modificada correctamente.", "success")
-            return redirect(url_for("index"))
+        error = validar(nombre, apellido, dni, excluir_id=persona_id)
+        if error:
+            flash(error, "error")
+            persona = {"id": persona_id, "nombre": nombre, "apellido": apellido, "dni": dni}
+            return render_template("form.html", accion="Modificar", persona=persona)
+        ws.cell(row=row_idx, column=2).value = nombre
+        ws.cell(row=row_idx, column=3).value = apellido
+        ws.cell(row=row_idx, column=4).value = dni
+        save_workbook(wb)
+        flash("Persona modificada correctamente.", "success")
+        return redirect(url_for("index"))
     persona = {
         "id": ws.cell(row=row_idx, column=1).value,
         "nombre": ws.cell(row=row_idx, column=2).value,
@@ -114,4 +135,5 @@ def eliminar(persona_id):
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)

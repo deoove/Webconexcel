@@ -49,7 +49,8 @@
              value="{{ persona.apellido if persona else '' }}" placeholder="Ej: Pérez">
 
       <label for="dni">DNI</label>
-      <input type="text" id="dni" name="dni" required
+      <input type="text" id="dni" name="dni" required inputmode="numeric" pattern="[0-9]+"
+             title="Solo números"
              value="{{ persona.dni if persona else '' }}" placeholder="Ej: 30123456">
 
       <div class="btn-row">
