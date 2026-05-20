@@ -5,7 +5,8 @@ import os
 app = Flask(__name__)
 app.secret_key = "clave_secreta"
 
-EXCEL_FILE = "datos.xlsx"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+EXCEL_FILE = os.path.join(BASE_DIR, "datos.xlsx")
 
 
 def get_workbook():
@@ -135,5 +136,7 @@ def eliminar(persona_id):
 
 
 if __name__ == "__main__":
+    get_workbook()  # crea datos.xlsx si todavía no existe
+    print(f"Base de datos Excel: {EXCEL_FILE}")
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
