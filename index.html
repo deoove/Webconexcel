@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gestión de Personas</title>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; background: #f0f2f5; color: #333; }
+
+    header {
+      background: #2563eb; color: white;
+      padding: 14px 32px;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+    }
+    header h1 { font-size: 1.3rem; }
+    .header-actions { display: flex; gap: 8px; align-items: center; }
+    .archivo-nombre { font-size: 0.8rem; opacity: .8; }
+
+    main { max-width: 960px; margin: 32px auto; padding: 0 16px; }
+
+    /* pantalla de bienvenida */
+    #pantalla-inicio {
+      background: white; border-radius: 12px; padding: 48px 32px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.1);
+      text-align: center; max-width: 480px; margin: 80px auto;
+    }
+    #pantalla-inicio h2 { color: #2563eb; margin-bottom: 12px; }
+    #pantalla-inicio p { color: #6b7280; margin-bottom: 28px; line-height: 1.5; }
+    .btn-grande {
+      display: inline-block; padding: 14px 28px; border-radius: 8px;
+      font-size: 1rem; cursor: pointer; border: none; margin: 6px;
+    }
+
+    #contenido { display: none; }
+
+    .card { background: white; border-radius: 10px; padding: 22px; box-shadow: 0 1px 6px rgba(0,0,0,.1); margin-bottom: 22px; }
+    h2 { color: #2563eb; margin-bottom: 14px; font-size: 1rem; }
+
+    .form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+    .field { flex: 1; min-width: 130px; }
+    label { display: block; margin-bottom: 4px; font-size: 0.8rem; font-weight: bold; color: #555; }
+    input[type=text] {
+      width: 100%; padding: 9px 12px;
+      border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.95rem;
+    }
+    input[type=text]:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
+
+    .btn { padding: 9px 18px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.9rem; }
+    .btn-primary   { background: #2563eb; color: white; }
+    .btn-primary:hover   { background: #1d4ed8; }
+    .btn-secondary { background: #e5e7eb; color: #374151; }
+    .btn-secondary:hover { background: #d1d5db; }
+    .btn-success   { background: #16a34a; color: white; }
+    .btn-success:hover   { background: #15803d; }
+    .btn-warning   { background: #f59e0b; color: white; }
+    .btn-warning:hover   { background: #d97706; }
+    .btn-danger    { background: #ef4444; color: white; }
+    .btn-danger:hover    { background: #dc2626; }
+    .btn-sm { padding: 5px 11px; font-size: 0.82rem; }
+
+    table { width: 100%; border-collapse: collapse; }
+    thead { background: #2563eb; color: white; }
+    th, td { padding: 10px 14px; text-align: left; font-size: 0.9rem; }
+    tbody tr:nth-child(even) { background: #f8fafc; }
+    tbody tr:hover { background: #eff6ff; }
+    .acciones { display: flex; gap: 6px; }
+
+    .msg { padding: 11px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 0.88rem; display: none; }
+    .msg-success { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+    .msg-error   { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+    .msg-warning { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+
+    .badge-guardado {
+      font-size: 0.75rem; padding: 3px 8px; border-radius: 12px;
+      background: #fef3c7; color: #92400e; border: 1px solid #fcd34d;
+    }
+    .badge-guardado.ok { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
+
+    .empty { text-align: center; padding: 28px; color: #9ca3af; font-size: 0.9rem; }
+
+    input[type=file] { display: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Gestión de Personas</h1>
+  <div class="header-actions">
+    <span class="archivo-nombre" id="nombre-archivo">Sin archivo</span>
+    <span class="badge-guardado" id="badge-estado">Sin guardar</span>
+    <button class="btn btn-success" id="btn-guardar-excel" style="display:none">💾 Guardar Excel</button>
+    <button class="btn btn-secondary" id="btn-cambiar-archivo" style="display:none;font-size:.82rem;">Cambiar archivo</button>
+  </div>
+</header>
+
+<!-- Pantalla de bienvenida -->
+<div id="pantalla-inicio">
+  <h2>Bienvenido</h2>
+  <p>Abrí un archivo Excel existente con tus datos, o creá uno nuevo vacío para empezar.</p>
+  <button class="btn btn-primary btn-grande" id="btn-abrir-archivo">📂 Abrir Excel existente</button>
+  <button class="btn btn-success btn-grande" id="btn-nuevo">✨ Crear nuevo</button>
+  <input type="file" id="input-archivo" accept=".xlsx,.xls">
+</div>
+
+<!-- Contenido principal -->
+<div id="contenido">
+  <main>
+    <div id="msg" class="msg"></div>
+
+    <div class="card">
+      <h2 id="form-titulo">Nueva persona</h2>
+      <form id="form">
+        <input type="hidden" id="persona-id">
+        <div class="form-row">
+          <div class="field">
+            <label for="nombre">Nombre</label>
+            <input type="text" id="nombre" placeholder="Ej: Juan" required>
+          </div>
+          <div class="field">
+            <label for="apellido">Apellido</label>
+            <input type="text" id="apellido" placeholder="Ej: Pérez" required>
+          </div>
+          <div class="field">
+            <label for="dni">DNI</label>
+            <input type="text" id="dni" placeholder="Ej: 30123456" inputmode="numeric" pattern="[0-9]+" required>
+          </div>
+          <div class="field" style="flex:0;display:flex;gap:8px;align-items:flex-end">
+            <button type="submit" class="btn btn-primary" id="btn-submit">Agregar</button>
+            <button type="button" class="btn btn-secondary" id="btn-cancelar" style="display:none">Cancelar</button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <table id="tabla">
+        <thead>
+          <tr><th>#</th><th>Nombre</th><th>Apellido</th><th>DNI</th><th>Acciones</th></tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div id="empty" class="empty" style="display:none">No hay personas. Usá el formulario de arriba para agregar la primera.</div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ─── Estado en memoria ───────────────────────────────────────────────────────
+let personas = [];   // [{id, nombre, apellido, dni}, ...]
+let nextId = 1;
+let pendiente = false;   // hay cambios sin guardar?
+
+// ─── Utilidades ──────────────────────────────────────────────────────────────
+function esc(t) {
+  const d = document.createElement("div"); d.textContent = t; return d.innerHTML;
+}
+
+function mostrar(texto, tipo) {
+  const m = document.getElementById("msg");
+  m.textContent = texto;
+  m.className = "msg msg-" + tipo;
+  m.style.display = "block";
+  clearTimeout(m._t);
+  m._t = setTimeout(() => m.style.display = "none", 3500);
+}
+
+function marcarPendiente(val) {
+  pendiente = val;
+  const b = document.getElementById("badge-estado");
+  if (val) {
+    b.textContent = "⚠ Sin guardar";
+    b.className = "badge-guardado";
+  } else {
+    b.textContent = "✓ Guardado";
+    b.className = "badge-guardado ok";
+  }
+}
+
+// ─── Renderizado de tabla ────────────────────────────────────────────────────
+function renderTabla() {
+  const tbody = document.getElementById("tbody");
+  tbody.innerHTML = "";
+  document.getElementById("empty").style.display = personas.length ? "none" : "block";
+
+  for (const p of personas) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${p.id}</td>
+      <td>${esc(p.nombre)}</td>
+      <td>${esc(p.apellido)}</td>
+      <td>${esc(p.dni)}</td>
+      <td class="acciones">
+        <button class="btn btn-warning btn-sm">Modificar</button>
+        <button class="btn btn-danger btn-sm">Eliminar</button>
+      </td>`;
+    tr.querySelectorAll("button")[0].onclick = () => editarPersona(p);
+    tr.querySelectorAll("button")[1].onclick = () => eliminarPersona(p.id);
+    tbody.appendChild(tr);
+  }
+}
+
+// ─── CRUD ────────────────────────────────────────────────────────────────────
+function validar(nombre, apellido, dni, excluirId) {
+  if (!nombre || !apellido || !dni) return "Todos los campos son obligatorios.";
+  if (!/^\d+$/.test(dni)) return "El DNI debe contener solo números.";
+  if (personas.some(p => p.dni === dni && p.id !== excluirId)) return "Ya existe una persona con ese DNI.";
+  return null;
+}
+
+document.getElementById("form").addEventListener("submit", e => {
+  e.preventDefault();
+  const idVal = document.getElementById("persona-id").value;
+  const id    = idVal ? parseInt(idVal) : null;
+  const nombre   = document.getElementById("nombre").value.trim();
+  const apellido = document.getElementById("apellido").value.trim();
+  const dni      = document.getElementById("dni").value.trim();
+
+  const error = validar(nombre, apellido, dni, id);
+  if (error) { mostrar(error, "error"); return; }
+
+  if (id) {
+    const p = personas.find(x => x.id === id);
+    p.nombre = nombre; p.apellido = apellido; p.dni = dni;
+    mostrar("Persona modificada correctamente.", "success");
+  } else {
+    personas.push({ id: nextId++, nombre, apellido, dni });
+    mostrar("Persona agregada correctamente.", "success");
+  }
+
+  marcarPendiente(true);
+  resetForm();
+  renderTabla();
+});
+
+function editarPersona(p) {
+  document.getElementById("persona-id").value = p.id;
+  document.getElementById("nombre").value    = p.nombre;
+  document.getElementById("apellido").value  = p.apellido;
+  document.getElementById("dni").value       = p.dni;
+  document.getElementById("form-titulo").textContent = "Modificar persona #" + p.id;
+  document.getElementById("btn-submit").textContent  = "Guardar cambios";
+  document.getElementById("btn-cancelar").style.display = "inline-block";
+  document.getElementById("nombre").focus();
+}
+
+function eliminarPersona(id) {
+  const p = personas.find(x => x.id === id);
+  if (!confirm(`¿Eliminar a ${p.nombre} ${p.apellido}?`)) return;
+  personas = personas.filter(x => x.id !== id);
+  mostrar("Persona eliminada correctamente.", "success");
+  marcarPendiente(true);
+  renderTabla();
+  if (document.getElementById("persona-id").value == id) resetForm();
+}
+
+function resetForm() {
+  document.getElementById("form").reset();
+  document.getElementById("persona-id").value = "";
+  document.getElementById("form-titulo").textContent = "Nueva persona";
+  document.getElementById("btn-submit").textContent  = "Agregar";
+  document.getElementById("btn-cancelar").style.display = "none";
+}
+document.getElementById("btn-cancelar").onclick = resetForm;
+
+// ─── Excel: leer ─────────────────────────────────────────────────────────────
+function cargarDesdeWorkbook(wb) {
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const filas = XLSX.utils.sheet_to_json(ws, { defval: "" });
+  personas = [];
+  let maxId = 0;
+  for (const f of filas) {
+    const id = parseInt(f["ID"] ?? f["id"] ?? 0);
+    personas.push({
+      id,
+      nombre:   String(f["Nombre"]   ?? f["nombre"]   ?? ""),
+      apellido: String(f["Apellido"] ?? f["apellido"] ?? ""),
+      dni:      String(f["DNI"]      ?? f["dni"]      ?? ""),
+    });
+    if (id > maxId) maxId = id;
+  }
+  nextId = maxId + 1;
+}
+
+document.getElementById("input-archivo").addEventListener("change", function () {
+  const file = this.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    const wb = XLSX.read(e.target.result, { type: "array" });
+    cargarDesdeWorkbook(wb);
+    document.getElementById("nombre-archivo").textContent = file.name;
+    mostrarContenido();
+    marcarPendiente(false);
+    renderTabla();
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+// ─── Excel: guardar ──────────────────────────────────────────────────────────
+function guardarExcel() {
+  const filas = personas.map(p => ({
+    ID: p.id, Nombre: p.nombre, Apellido: p.apellido, DNI: p.dni
+  }));
+  const ws = XLSX.utils.json_to_sheet(filas, { header: ["ID","Nombre","Apellido","DNI"] });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Personas");
+  const nombre = document.getElementById("nombre-archivo").textContent || "datos.xlsx";
+  XLSX.writeFile(wb, nombre.endsWith(".xlsx") ? nombre : "datos.xlsx");
+  marcarPendiente(false);
+  mostrar("Excel guardado (revisá la carpeta de descargas).", "success");
+}
+document.getElementById("btn-guardar-excel").onclick = guardarExcel;
+
+// ─── Nuevo archivo ────────────────────────────────────────────────────────────
+document.getElementById("btn-nuevo").onclick = function () {
+  personas = []; nextId = 1;
+  document.getElementById("nombre-archivo").textContent = "datos.xlsx";
+  mostrarContenido();
+  marcarPendiente(false);
+  renderTabla();
+};
+
+// ─── Cambiar archivo ─────────────────────────────────────────────────────────
+document.getElementById("btn-abrir-archivo").onclick = () =>
+  document.getElementById("input-archivo").click();
+
+document.getElementById("btn-cambiar-archivo").onclick = function () {
+  if (pendiente && !confirm("Tenés cambios sin guardar. ¿Cambiar igual?")) return;
+  document.getElementById("input-archivo").value = "";
+  document.getElementById("input-archivo").click();
+};
+
+// ─── Mostrar contenido ───────────────────────────────────────────────────────
+function mostrarContenido() {
+  document.getElementById("pantalla-inicio").style.display = "none";
+  document.getElementById("contenido").style.display = "block";
+  document.getElementById("btn-guardar-excel").style.display = "inline-block";
+  document.getElementById("btn-cambiar-archivo").style.display = "inline-block";
+}
+
+// ─── Aviso al cerrar con cambios pendientes ──────────────────────────────────
+window.addEventListener("beforeunload", e => {
+  if (pendiente) { e.preventDefault(); e.returnValue = ""; }
+});
+</script>
+</body>
+</html>
